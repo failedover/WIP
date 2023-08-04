@@ -9,19 +9,19 @@ function Tail-LogFile {
     .PARAMETER Path
     The path of the log file to tail. Maximum length: 260 characters.
 
-    .PARAMETER IntervalSeconds
+    .PARAMETER IntervalSeconds, s
     The interval in seconds between checks for new log messages. Default is 1 second. Maximum length: 10 characters.
 
-    .PARAMETER ExcludeKeywords
+    .PARAMETER ExcludeKeywords, x
     An array of keywords to exclude lines containing any of these keywords from the output. Maximum length: 1000 characters.
 
-    .PARAMETER HighlightKeywords
+    .PARAMETER HighlightKeywords, h
     An array of keywords to highlight lines containing any of these keywords in the output. Maximum length: 1000 characters.
 
     .PARAMETER OutFile
     The path to the output file. If specified, the log file will be created in the specified path. If not specified, no log file will be created. Maximum length: 260 characters.
 
-    .PARAMETER LimitKeywords
+    .PARAMETER LimitKeywords, limit, include, i
     An array of keywords. If specified, only log messages containing any of these keywords will be displayed. Maximum length: 1000 characters.
 
     .EXAMPLE
@@ -42,17 +42,21 @@ function Tail-LogFile {
         [ValidateLength(0, 260)]
         [string]$Path,
 
+        [Alias('s')]
         [int]$IntervalSeconds = 1,
 
+        [Alias('exclude', 'x')]
         [ValidateLength(0, 1000)]
         [string[]]$ExcludeKeywords,
 
+        [Alias('highlight', 'h')]
         [ValidateLength(0, 1000)]
         [string[]]$HighlightKeywords,
 
         [ValidateLength(0, 260)]
         [string]$OutFile,
 
+        [Alias('limit', 'include', 'i')]
         [ValidateLength(0, 1000)]
         [string[]]$LimitKeywords
     )

@@ -61,36 +61,28 @@ function Tail-LogFile {
         [string[]]$LimitKeywords
     )
 
-    if ($OutFile) {
-        if (-not $OutFile -or $OutFile -eq $true) {
-            # If OutFile is specified without a value or with a value of $true, use the default path in the current working directory
-            $OutFile = Join-Path (Get-Location) ("log_output_" + (Get-Date -Format 'yyyyMMdd_HHmmss') + ".txt")
-        } else {
-            # Check if the specified path is a folder, if yes, create the log file in that folder
-            if ((Test-Path $OutFile) -and (Get-Item $OutFile).PSIsContainer) {
-                $OutFile = Join-Path $OutFile ("log_output_" + (Get-Date -Format 'yyyyMMdd_HHmmss') + ".txt")
-            } else {
-                # If OutFile is a full file path, use it as is
-                $OutFile = $OutFile
-            }
-        }
-
-        $outputFile = [System.IO.File]::Open($OutFile, 'Append', 'Write', 'ReadWrite')
-    }
-
     $filePath = Resolve-Path $Path
     $lastPosition = 0
+    $fileStream = $null
 
     while ($true) {
-        $file = Get-Item $filePath
-
         # Check if the file exists
+        $file = Get-Item $filePath
         if ($file) {
             # Check if the file size has increased
             if ($file.Length -gt $lastPosition) {
-                $fileStream = [System.IO.File]::Open($filePath, 'Open', 'Read', 'ReadWrite')
-                $fileStream.Position = $lastPosition
-                $reader = New-Object System.IO.StreamReader($fileStream)
+                # Check if the file has been renamed or moved (log file rotation)
+                if ($fileStream -and $fileStream.Name -ne $filePath) {
+                    $fileStream.Dispose()
+                    $fileStream = $null
+                }
+
+                # Open a new file stream if necessary
+                if (-not $fileStream) {
+                    $fileStream = [System.IO.File]::Open($filePath, 'Open', 'Read', 'ReadWrite')
+                    $fileStream.Position = $lastPosition
+                    $reader = New-Object System.IO.StreamReader($fileStream)
+                }
 
                 while (!$reader.EndOfStream) {
                     $line = $reader.ReadLine()
@@ -110,8 +102,6 @@ function Tail-LogFile {
                 }
 
                 $lastPosition = $fileStream.Position
-                $reader.Close()
-                $fileStream.Close()
             }
         } else {
             Write-Host "File not found: $Path"
@@ -121,9 +111,9 @@ function Tail-LogFile {
         Start-Sleep -Seconds $IntervalSeconds
     }
 
-    # Close the output file if it was created
-    if ($OutFile) {
-        $outputFile.Close()
+    # Close the file stream if it was created
+    if ($fileStream) {
+        $fileStream.Dispose()
     }
 }
 

@@ -1,10 +1,10 @@
 function Tail-LogFile {
     <#
     .SYNOPSIS
-    Tails a log file, displaying new messages to the console. Optionally, it can exclude or highlight lines based on keywords.
+    Tails a log file, displaying new messages to the console. Optionally, it can exclude lines based on keywords and display lines matching all the specified words.
 
     .DESCRIPTION
-    This function allows you to continuously monitor a log file and display any new log messages that are appended to the file. Additionally, you can exclude specific lines containing certain keywords from the output and highlight lines that contain specific keywords. The function can write the output to a file if the OutFile parameter is specified.
+    This function allows you to continuously monitor a log file and display any new log messages that are appended to the file. Additionally, you can exclude specific lines containing certain keywords from the output and display only the lines that contain all the specified words. The function can write the output to a file if the OutFile parameter is specified.
 
     .PARAMETER Path
     The path of the log file to tail. Maximum length: 260 characters.
@@ -16,7 +16,7 @@ function Tail-LogFile {
     An array of keywords to exclude lines containing any of these keywords from the output. Maximum length: 1000 characters.
 
     .PARAMETER HighlightKeywords, h
-    An array of keywords to highlight lines containing any of these keywords in the output. Maximum length: 1000 characters.
+    An array of keywords to highlight words containing any of these keywords in the output. Maximum length: 1000 characters.
 
     .PARAMETER OutFile
     The path to the output file. If specified, the log file will be created in the specified path. If not specified, no log file will be created. Maximum length: 260 characters.
@@ -24,17 +24,24 @@ function Tail-LogFile {
     .PARAMETER LimitKeywords, limit, include, i
     An array of keywords. If specified, only log messages containing any of these keywords will be displayed. Maximum length: 1000 characters.
 
+    .PARAMETER MatchWords, mw
+    An array of words. If specified, only log messages containing all of these words will be displayed. Maximum length: 1000 characters.
+
     .EXAMPLE
     Tail-LogFile -Path 'C:\Logs\app.log' -ExcludeKeywords 'Error', 'Warning'
     Tails the 'C:\Logs\app.log' file, excluding any lines containing the keywords 'Error' or 'Warning'.
 
     .EXAMPLE
-    Tail-LogFile -Path 'C:\Logs\app.log' -HighlightKeywords 'Success', 'Important' -OutFile
-    Tails the 'C:\Logs\app.log' file, highlighting any lines containing the keywords 'Success' or 'Important', and writes the output to the default location (current working directory).
+    Tail-LogFile -Path 'C:\Logs\app.log' -OutFile
+    Tails the 'C:\Logs\app.log' file and writes the output to the default location (current working directory).
 
     .EXAMPLE
     Tail-LogFile -Path 'C:\Logs\app.log' -LimitKeywords 'Error', 'Warning' -OutFile 'C:\CustomOutput\error_log_output.txt'
     Tails the 'C:\Logs\app.log' file, displaying only lines containing the keywords 'Error' or 'Warning', and writes the output to the specified custom output file path.
+
+    .EXAMPLE
+    Tail-LogFile -Path 'C:\Logs\app.log' -MatchWords 'Error', 'Exception'
+    Tails the 'C:\Logs\app.log' file, displaying only lines that contain both 'Error' and 'Exception'.
     #>
 
     param (
@@ -58,7 +65,11 @@ function Tail-LogFile {
 
         [Alias('limit', 'include', 'i')]
         [ValidateLength(0, 1000)]
-        [string[]]$LimitKeywords
+        [string[]]$LimitKeywords,
+
+        [Alias('mw')]
+        [ValidateLength(0, 1000)]
+        [string[]]$MatchWords
     )
 
     $filePath = Resolve-Path $Path
@@ -88,14 +99,16 @@ function Tail-LogFile {
                     $line = $reader.ReadLine()
                     if ($line -ne $null -and ($ExcludeKeywords -eq $null -or -not (Test-StringContainsAny $line $ExcludeKeywords))) {
                         if ($LimitKeywords -eq $null -or (Test-StringContainsAny $line $LimitKeywords)) {
-                            if ($HighlightKeywords -ne $null -and (Test-StringContainsAny $line $HighlightKeywords)) {
-                                Write-Host $line -ForegroundColor Yellow
-                            } else {
+                            if ($MatchWords -eq $null -or (Test-StringContainsAll $line $MatchWords)) {
+                                if ($MatchWords -ne $null) {
+                                    $words = $line -split '\s+'
+                                    $outputWords = $words[0..6] + " ... " + ($words | Where-Object { $_ -match (Join-ArrayForRegex $MatchWords) })
+                                    $line = $outputWords -join ' '
+                                }
                                 Write-Host $line
-                            }
-
-                            if ($OutFile) {
-                                Add-Content -Path $OutFile -Value $line
+                                if ($OutFile) {
+                                    Add-Content -Path $OutFile -Value $line
+                                }
                             }
                         }
                     }
@@ -129,4 +142,27 @@ function Test-StringContainsAny {
         }
     }
     return $false
+}
+
+function Test-StringContainsAll {
+    param (
+        [string]$String,
+        [string[]]$Keywords
+    )
+
+    foreach ($keyword in $Keywords) {
+        if ($String -notmatch "(?i)$keyword") {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Join-ArrayForRegex {
+    param (
+        [string[]]$Array
+    )
+
+    $escapedArray = $Array | ForEach-Object { [regex]::Escape($_) }
+    return ($escapedArray -join '|')
 }
